@@ -1,0 +1,584 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Agentic RAG — Document Intelligence</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=Sora:wght@300;400;500;600&display=swap" rel="stylesheet">
+<style>
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+:root {
+  --bg:        #0b0d10;
+  --bg2:       #13161c;
+  --bg3:       #1c2029;
+  --border:    #252933;
+  --accent:    #4f8ef7;
+  --accent2:   #7c5cfc;
+  --ok:        #2dd4a0;
+  --warn:      #f59e42;
+  --danger:    #f05a5a;
+  --text:      #e6e8ed;
+  --text2:     #8a8fa8;
+  --text3:     #4a4f63;
+  --mono:      'IBM Plex Mono', monospace;
+  --sans:      'Sora', sans-serif;
+  --radius:    10px;
+}
+
+html, body { height: 100%; background: var(--bg); color: var(--text); font-family: var(--sans); font-size: 15px; }
+
+/* ── Layout ─────────────────────────────────── */
+.shell {
+  display: grid;
+  grid-template-columns: 280px 1fr;
+  grid-template-rows: 56px 1fr;
+  height: 100vh;
+  overflow: hidden;
+}
+
+/* ── Top bar ─────────────────────────────────── */
+.topbar {
+  grid-column: 1 / -1;
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 0 24px;
+  border-bottom: 1px solid var(--border);
+  background: var(--bg2);
+}
+.topbar-logo {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-weight: 600;
+  font-size: 15px;
+  letter-spacing: -.3px;
+}
+.topbar-logo .dot {
+  width: 22px; height: 22px;
+  border-radius: 6px;
+  background: linear-gradient(135deg, var(--accent), var(--accent2));
+  display: flex; align-items: center; justify-content: center;
+}
+.topbar-logo .dot svg { width:12px; height:12px; }
+.topbar-doc {
+  margin-left: auto;
+  font-family: var(--mono);
+  font-size: 11px;
+  color: var(--text2);
+  background: var(--bg3);
+  padding: 4px 10px;
+  border-radius: 20px;
+  border: 1px solid var(--border);
+}
+.status-dot {
+  display: inline-block;
+  width: 7px; height: 7px;
+  border-radius: 50%;
+  background: var(--ok);
+  margin-right: 6px;
+  box-shadow: 0 0 6px var(--ok);
+}
+
+/* ── Sidebar ─────────────────────────────────── */
+.sidebar {
+  background: var(--bg2);
+  border-right: 1px solid var(--border);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+.sidebar-header {
+  padding: 18px 20px 12px;
+  font-size: 11px;
+  font-family: var(--mono);
+  color: var(--text3);
+  text-transform: uppercase;
+  letter-spacing: 1.2px;
+}
+.suggested-list {
+  flex: 1;
+  overflow-y: auto;
+  padding: 0 12px 12px;
+}
+.suggested-list::-webkit-scrollbar { width: 4px; }
+.suggested-list::-webkit-scrollbar-thumb { background: var(--border); border-radius: 2px; }
+.question-chip {
+  display: block;
+  width: 100%;
+  text-align: left;
+  padding: 10px 12px;
+  margin-bottom: 6px;
+  background: var(--bg3);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  color: var(--text2);
+  font-family: var(--sans);
+  font-size: 12.5px;
+  line-height: 1.5;
+  cursor: pointer;
+  transition: all .15s;
+}
+.question-chip:hover {
+  background: var(--bg);
+  border-color: var(--accent);
+  color: var(--text);
+}
+
+.sidebar-meta {
+  padding: 16px;
+  border-top: 1px solid var(--border);
+  font-family: var(--mono);
+  font-size: 11px;
+  color: var(--text3);
+  line-height: 1.8;
+}
+.sidebar-meta span { color: var(--text2); }
+
+.new-chat-btn {
+  margin: 12px 16px;
+  padding: 9px 0;
+  background: transparent;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  color: var(--text2);
+  font-family: var(--sans);
+  font-size: 13px;
+  cursor: pointer;
+  transition: all .15s;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+}
+.new-chat-btn:hover { border-color: var(--accent); color: var(--accent); }
+
+/* ── Main chat area ───────────────────────────── */
+.chat-area {
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.messages {
+  flex: 1;
+  overflow-y: auto;
+  padding: 32px 48px;
+  scroll-behavior: smooth;
+}
+.messages::-webkit-scrollbar { width: 5px; }
+.messages::-webkit-scrollbar-thumb { background: var(--border); border-radius: 2px; }
+
+/* Empty state */
+.empty-state {
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  color: var(--text3);
+}
+.empty-icon {
+  width: 56px; height: 56px;
+  border-radius: 16px;
+  background: var(--bg3);
+  border: 1px solid var(--border);
+  display: flex; align-items: center; justify-content: center;
+}
+.empty-icon svg { width: 26px; height: 26px; opacity: .5; }
+.empty-state h2 { font-size: 16px; font-weight: 500; color: var(--text2); margin-top: 4px; }
+.empty-state p  { font-size: 13px; text-align: center; max-width: 280px; line-height: 1.6; }
+
+/* Message bubbles */
+.msg { margin-bottom: 28px; display: flex; flex-direction: column; gap: 6px; }
+.msg-role {
+  font-family: var(--mono);
+  font-size: 10.5px;
+  color: var(--text3);
+  letter-spacing: .8px;
+  text-transform: uppercase;
+}
+.msg.user .msg-role { color: var(--accent); }
+.msg-body {
+  font-size: 14.5px;
+  line-height: 1.75;
+  color: var(--text);
+  max-width: 760px;
+}
+.msg.user .msg-body {
+  background: var(--bg3);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 12px 16px;
+  display: inline-block;
+}
+.msg.assistant .msg-body { color: var(--text); }
+
+/* Sources & trace */
+.msg-meta { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 6px; }
+.tag {
+  font-family: var(--mono);
+  font-size: 10.5px;
+  padding: 3px 8px;
+  border-radius: 20px;
+  border: 1px solid;
+}
+.tag.source { border-color: var(--accent2); color: var(--accent2); background: #7c5cfc11; }
+.tag.step   { border-color: var(--border);  color: var(--text3); }
+.tag.ok     { border-color: var(--ok);      color: var(--ok);    background: #2dd4a011; }
+.tag.warn   { border-color: var(--warn);    color: var(--warn);  background: #f59e4211; }
+.tag.danger { border-color: var(--danger);  color: var(--danger);background: #f05a5a11; }
+
+/* Loading indicator */
+.thinking {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-family: var(--mono);
+  font-size: 12px;
+  color: var(--text3);
+  padding: 4px 0;
+}
+.thinking-dots span {
+  display: inline-block;
+  width: 5px; height: 5px;
+  border-radius: 50%;
+  background: var(--accent);
+  animation: pulse 1.2s infinite;
+  opacity: .4;
+}
+.thinking-dots span:nth-child(2) { animation-delay: .2s; }
+.thinking-dots span:nth-child(3) { animation-delay: .4s; }
+@keyframes pulse { 0%,100%{opacity:.2;transform:scale(.8)} 50%{opacity:1;transform:scale(1)} }
+
+/* ── Input bar ────────────────────────────────── */
+.input-bar {
+  border-top: 1px solid var(--border);
+  padding: 16px 48px;
+  background: var(--bg2);
+  display: flex;
+  gap: 10px;
+  align-items: flex-end;
+}
+.input-wrap {
+  flex: 1;
+  position: relative;
+  background: var(--bg3);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  transition: border-color .15s;
+}
+.input-wrap:focus-within { border-color: var(--accent); }
+textarea {
+  width: 100%;
+  background: transparent;
+  border: none;
+  outline: none;
+  resize: none;
+  color: var(--text);
+  font-family: var(--sans);
+  font-size: 14px;
+  padding: 12px 16px;
+  min-height: 48px;
+  max-height: 160px;
+  line-height: 1.6;
+}
+textarea::placeholder { color: var(--text3); }
+
+.send-btn {
+  width: 46px; height: 46px;
+  border-radius: var(--radius);
+  background: var(--accent);
+  border: none;
+  cursor: pointer;
+  display: flex; align-items: center; justify-content: center;
+  transition: all .15s;
+  flex-shrink: 0;
+}
+.send-btn:hover { background: var(--accent2); }
+.send-btn:disabled { opacity: .4; cursor: not-allowed; }
+.send-btn svg { width: 18px; height: 18px; }
+
+.input-hint {
+  font-family: var(--mono);
+  font-size: 10px;
+  color: var(--text3);
+  padding: 6px 48px;
+  background: var(--bg2);
+  border-top: 1px solid transparent;
+}
+</style>
+</head>
+<body>
+
+<div class="shell">
+
+  <!-- Top bar -->
+  <header class="topbar">
+    <div class="topbar-logo">
+      <div class="dot">
+        <svg viewBox="0 0 12 12" fill="none" xmlns="http://www.w3.org/2000/svg">
+          <path d="M6 1L11 6L6 11L1 6L6 1Z" fill="white" fill-opacity=".9"/>
+        </svg>
+      </div>
+      Agentic RAG
+    </div>
+    <div class="topbar-doc" id="doc-label">
+      <span class="status-dot"></span>Loading…
+    </div>
+    <a href="/admin" style="font-family:var(--mono);font-size:11px;color:var(--text2);text-decoration:none;padding:4px 10px;border:1px solid var(--border);border-radius:20px;background:var(--bg3);transition:all .15s;" onmouseover="this.style.borderColor='var(--accent)';this.style.color='var(--accent)'" onmouseout="this.style.borderColor='var(--border)';this.style.color='var(--text2)'">Admin</a>
+  </header>
+
+  <!-- Sidebar -->
+  <aside class="sidebar">
+    <button class="new-chat-btn" onclick="newChat()">
+      <svg width="14" height="14" viewBox="0 0 16 16" fill="none">
+        <path d="M8 3V13M3 8H13" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
+      </svg>
+      New conversation
+    </button>
+
+    <div class="sidebar-header">Suggested questions</div>
+    <div class="suggested-list" id="suggested-list">
+      <!-- Populated after document-info loads -->
+    </div>
+
+    <div class="sidebar-meta" id="sidebar-meta">
+      Vectors: <span>—</span><br>
+      Model: <span>—</span><br>
+      Retriever k: <span>—</span><br>
+      Web search: <span>—</span>
+    </div>
+  </aside>
+
+  <!-- Chat -->
+  <main class="chat-area">
+    <div class="messages" id="messages">
+      <div class="empty-state" id="empty-state">
+        <div class="empty-icon">
+          <svg viewBox="0 0 26 26" fill="none" stroke="currentColor" stroke-width="1.5">
+            <circle cx="13" cy="13" r="11"/>
+            <path d="M13 9v4l3 3" stroke-linecap="round"/>
+          </svg>
+        </div>
+        <h2>Ask about your sources</h2>
+        <p>Use the suggested questions on the left, or type your own question below.</p>
+      </div>
+    </div>
+
+    <form class="input-bar" onsubmit="sendQuestion(event)">
+      <div class="input-wrap">
+        <textarea
+          id="question-input"
+          placeholder="Ask a question about the document…"
+          rows="1"
+          onkeydown="handleKey(event)"
+          oninput="autoResize(this)"
+        ></textarea>
+      </div>
+      <button class="send-btn" id="send-btn" type="submit" title="Send">
+        <svg viewBox="0 0 18 18" fill="none" stroke="white" stroke-width="1.8">
+          <path d="M2 9H16M10 3L16 9L10 15" stroke-linecap="round" stroke-linejoin="round"/>
+        </svg>
+      </button>
+    </form>
+    <div class="input-hint">⏎ Send &nbsp;·&nbsp; Shift+⏎ New line &nbsp;·&nbsp; Powered by LangGraph Agentic RAG</div>
+  </main>
+
+</div>
+
+<script>
+// ── State ────────────────────────────────────────────────────────────────────
+let sessionId = 'session_' + Math.random().toString(36).slice(2, 9);
+let docLabel = 'Knowledge Base';
+
+// ── Boot: fetch document info + sources + suggested questions ─────────────────
+async function loadDocInfo() {
+  try {
+    const [infoRes, srcRes] = await Promise.all([
+      fetch('/document-info',  { cache: 'no-store' }),
+      fetch('/admin/sources',  { cache: 'no-store' }),
+    ]);
+    const info    = await infoRes.json();
+    const srcData = await srcRes.json();
+    const sources = srcData.sources || [];
+
+    // Update topbar label
+    if (sources.length > 0) {
+      const names = sources.map(s => {
+        const n = s.source;
+        return n.startsWith('http') ? new URL(n).hostname : n.split('/').pop();
+      });
+      docLabel = names.length === 1 ? names[0] : `${names.length} sources`;
+    } else {
+      docLabel = 'No sources — visit Admin';
+    }
+    document.getElementById('doc-label').innerHTML =
+      `<span class="status-dot" style="${sources.length ? '' : 'background:var(--warn);box-shadow:0 0 6px var(--warn)'}"></span>${escapeHtml(docLabel)}`;
+
+    // Update sidebar meta
+    const meta = document.getElementById('sidebar-meta');
+    meta.innerHTML = `
+      Vectors: <span>${(info.vector_count ?? 0).toLocaleString()}</span><br>
+      Sources: <span>${sources.length}</span><br>
+      Model: <span>${info.llm_model ?? '—'}</span><br>
+      Retriever k: <span>${info.retriever_k ?? '—'}</span>
+    `;
+
+    // Load suggested questions
+    const list = document.getElementById('suggested-list');
+    if (sources.length === 0) {
+      list.innerHTML = `<div style="padding:10px 12px;font-size:12px;color:var(--text3);line-height:1.6;">
+        No sources ingested yet.<br>
+        <a href="/admin" style="color:var(--accent);text-decoration:none;">Go to Admin →</a> to upload documents.
+      </div>`;
+      return;
+    }
+
+    list.innerHTML = `<div style="padding:6px 12px 10px;font-size:11px;color:var(--text3);font-family:var(--mono);">Generating questions…</div>`;
+
+    const qRes  = await fetch('/admin/suggested-questions', { cache: 'no-store' });
+    const qData = await qRes.json();
+    if (qData.questions.length) {
+      list.innerHTML = qData.questions.map(q =>
+        `<button class="question-chip" onclick="askSuggested(this.textContent)">${escapeHtml(q)}</button>`
+      ).join('');
+    } else {
+      list.innerHTML = `<div style="padding:10px 12px;font-size:12px;color:var(--text3);">Ask anything about the uploaded sources.</div>`;
+    }
+  } catch(e) {
+    console.warn('Could not load doc info', e);
+  }
+}
+
+// ── UI helpers ────────────────────────────────────────────────────────────────
+function autoResize(el) {
+  el.style.height = 'auto';
+  el.style.height = Math.min(el.scrollHeight, 160) + 'px';
+}
+
+function handleKey(e) {
+  if (e.key === 'Enter' && !e.shiftKey) {
+    e.preventDefault();
+    document.getElementById('send-btn').click();
+  }
+}
+
+function askSuggested(q) {
+  document.getElementById('question-input').value = q;
+  document.getElementById('question-input').focus();
+}
+
+function newChat() {
+  sessionId = 'session_' + Math.random().toString(36).slice(2, 9);
+  const msgs = document.getElementById('messages');
+  msgs.innerHTML = `
+    <div class="empty-state" id="empty-state">
+      <div class="empty-icon">
+        <svg viewBox="0 0 26 26" fill="none" stroke="currentColor" stroke-width="1.5">
+          <circle cx="13" cy="13" r="11"/>
+          <path d="M13 9v4l3 3" stroke-linecap="round"/>
+        </svg>
+      </div>
+      <h2>Ask about your sources</h2>
+      <p>Use the suggested questions on the left, or type your own question below.</p>
+    </div>`;
+}
+
+function escapeHtml(s) {
+  return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')
+          .replace(/\n/g,'<br>');
+}
+
+// ── Chat ──────────────────────────────────────────────────────────────────────
+async function sendQuestion(e) {
+  if (e) e.preventDefault();
+
+  const input = document.getElementById('question-input');
+  const question = input.value.trim();
+  if (!question) return;
+
+  input.value = '';
+  input.style.height = 'auto';
+  document.getElementById('send-btn').disabled = true;
+
+  const msgs = document.getElementById('messages');
+  const empty = document.getElementById('empty-state');
+  if (empty) empty.remove();
+
+  // User bubble
+  msgs.innerHTML += `
+    <div class="msg user">
+      <div class="msg-role">You</div>
+      <div class="msg-body">${escapeHtml(question)}</div>
+    </div>`;
+
+  // Thinking indicator
+  const thinkingId = 'thinking_' + Date.now();
+  msgs.innerHTML += `
+    <div class="msg assistant" id="${thinkingId}">
+      <div class="msg-role">Assistant</div>
+      <div class="thinking">
+        <div class="thinking-dots"><span></span><span></span><span></span></div>
+        Thinking…
+      </div>
+    </div>`;
+  msgs.scrollTop = msgs.scrollHeight;
+
+  try {
+    const resp = await fetch('/chat', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({ question, session_id: sessionId }),
+    });
+
+    if (!resp.ok) {
+      const err = await resp.json();
+      throw new Error(err.detail || 'Server error');
+    }
+
+    const data = await resp.json();
+
+    // Build tags
+    let tags = '';
+    if (data.sources?.length) {
+      data.sources.forEach(s => { tags += `<span class="tag source">📄 ${escapeHtml(s)}</span>`; });
+    }
+    if (data.hallucination_free) tags += `<span class="tag ok">✓ grounded</span>`;
+    else tags += `<span class="tag danger">⚠ may hallucinate</span>`;
+    if (!data.answer_useful) tags += `<span class="tag warn">⚠ low confidence</span>`;
+    if (data.steps?.length) {
+      data.steps.slice(0, 5).forEach(s => { tags += `<span class="tag step">${escapeHtml(s)}</span>`; });
+    }
+
+    document.getElementById(thinkingId).outerHTML = `
+      <div class="msg assistant">
+        <div class="msg-role">Assistant — ${escapeHtml(docLabel)}</div>
+        <div class="msg-body">${escapeHtml(data.answer)}</div>
+        <div class="msg-meta">${tags}</div>
+      </div>`;
+
+  } catch(err) {
+    document.getElementById(thinkingId).outerHTML = `
+      <div class="msg assistant">
+        <div class="msg-role">Assistant</div>
+        <div class="msg-body" style="color:var(--danger)">Error: ${escapeHtml(err.message)}</div>
+      </div>`;
+  }
+
+  msgs.scrollTop = msgs.scrollHeight;
+  document.getElementById('send-btn').disabled = false;
+  document.getElementById('question-input').focus();
+}
+
+// ── Boot ──────────────────────────────────────────────────────────────────────
+loadDocInfo();
+
+// Re-fetch when navigating back (bfcache restore fires pageshow, not load)
+window.addEventListener('pageshow', (e) => { if (e.persisted) loadDocInfo(); });
+</script>
+</body>
+</html>

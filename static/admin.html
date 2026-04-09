@@ -1,0 +1,400 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Admin — Source Management</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=Sora:wght@300;400;500;600&display=swap" rel="stylesheet">
+<style>
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+:root {
+  --bg:      #0b0d10;
+  --bg2:     #13161c;
+  --bg3:     #1c2029;
+  --border:  #252933;
+  --accent:  #4f8ef7;
+  --accent2: #7c5cfc;
+  --ok:      #2dd4a0;
+  --warn:    #f59e42;
+  --danger:  #f05a5a;
+  --text:    #e6e8ed;
+  --text2:   #8a8fa8;
+  --text3:   #4a4f63;
+  --mono:    'IBM Plex Mono', monospace;
+  --sans:    'Sora', sans-serif;
+  --radius:  10px;
+}
+
+html, body { min-height: 100%; background: var(--bg); color: var(--text); font-family: var(--sans); font-size: 15px; }
+
+/* ── Top bar ────────────────── */
+.topbar {
+  display: flex; align-items: center; gap: 16px;
+  padding: 0 24px; height: 56px;
+  background: var(--bg2); border-bottom: 1px solid var(--border);
+}
+.topbar-logo { display: flex; align-items: center; gap: 10px; font-weight: 600; font-size: 15px; }
+.dot {
+  width: 22px; height: 22px; border-radius: 6px;
+  background: linear-gradient(135deg, var(--accent), var(--accent2));
+  display: flex; align-items: center; justify-content: center;
+}
+.dot svg { width: 12px; height: 12px; }
+.admin-badge {
+  font-family: var(--mono); font-size: 10px; padding: 3px 8px;
+  border-radius: 20px; border: 1px solid var(--accent2);
+  color: var(--accent2); background: #7c5cfc11;
+}
+.nav-link {
+  margin-left: auto; font-family: var(--mono); font-size: 11px;
+  color: var(--text2); text-decoration: none; padding: 6px 12px;
+  border: 1px solid var(--border); border-radius: var(--radius);
+  transition: all .15s;
+}
+.nav-link:hover { border-color: var(--accent); color: var(--accent); }
+
+/* ── Page layout ────────────── */
+.page { max-width: 860px; margin: 0 auto; padding: 40px 24px 80px; }
+.page-title { font-size: 20px; font-weight: 600; margin-bottom: 4px; }
+.page-sub { color: var(--text2); font-size: 13px; margin-bottom: 32px; }
+
+/* ── Card ───────────────────── */
+.card {
+  background: var(--bg2); border: 1px solid var(--border);
+  border-radius: var(--radius); padding: 24px; margin-bottom: 24px;
+}
+.card-title {
+  font-family: var(--mono); font-size: 11px; color: var(--text3);
+  text-transform: uppercase; letter-spacing: 1.2px; margin-bottom: 16px;
+}
+
+/* ── Drop zone ──────────────── */
+.drop-zone {
+  border: 2px dashed var(--border); border-radius: var(--radius);
+  padding: 36px 24px; text-align: center; cursor: pointer;
+  transition: all .2s; position: relative;
+}
+.drop-zone:hover, .drop-zone.dragover {
+  border-color: var(--accent); background: #4f8ef708;
+}
+.drop-zone input[type=file] {
+  position: absolute; inset: 0; opacity: 0; cursor: pointer; width: 100%; height: 100%;
+}
+.drop-icon { font-size: 28px; margin-bottom: 10px; }
+.drop-label { font-size: 14px; color: var(--text2); }
+.drop-hint  { font-size: 11px; color: var(--text3); margin-top: 6px; font-family: var(--mono); }
+.file-list  { margin-top: 12px; display: flex; flex-wrap: wrap; gap: 6px; }
+.file-chip {
+  font-family: var(--mono); font-size: 11px; padding: 4px 10px;
+  border-radius: 20px; border: 1px solid var(--border); color: var(--text2);
+  display: flex; align-items: center; gap: 6px; background: var(--bg3);
+}
+.file-chip button {
+  background: none; border: none; color: var(--text3); cursor: pointer;
+  font-size: 13px; line-height: 1; padding: 0;
+}
+.file-chip button:hover { color: var(--danger); }
+
+/* ── URL input ──────────────── */
+textarea.url-input {
+  width: 100%; background: var(--bg3); border: 1px solid var(--border);
+  border-radius: var(--radius); color: var(--text); font-family: var(--mono);
+  font-size: 12px; padding: 12px 14px; resize: vertical; min-height: 88px;
+  outline: none; transition: border-color .15s;
+}
+textarea.url-input:focus { border-color: var(--accent); }
+textarea.url-input::placeholder { color: var(--text3); }
+
+/* ── Buttons ────────────────── */
+.btn {
+  display: inline-flex; align-items: center; gap: 8px;
+  padding: 10px 20px; border-radius: var(--radius); border: none;
+  font-family: var(--sans); font-size: 13px; font-weight: 500;
+  cursor: pointer; transition: all .15s;
+}
+.btn-primary { background: var(--accent); color: #fff; }
+.btn-primary:hover { background: var(--accent2); }
+.btn-primary:disabled { opacity: .4; cursor: not-allowed; }
+.btn-danger  { background: transparent; border: 1px solid var(--danger); color: var(--danger); }
+.btn-danger:hover  { background: #f05a5a15; }
+.btn-danger:disabled { opacity: .4; cursor: not-allowed; }
+
+/* ── Status / results ───────── */
+.status-box {
+  margin-top: 16px; padding: 14px 16px; border-radius: var(--radius);
+  font-size: 13px; line-height: 1.7; display: none;
+}
+.status-box.success { background: #2dd4a012; border: 1px solid var(--ok); color: var(--ok); }
+.status-box.error   { background: #f05a5a10; border: 1px solid var(--danger); color: var(--danger); }
+.status-box.info    { background: #4f8ef710; border: 1px solid var(--accent); color: var(--accent); }
+
+/* ── Sources table ──────────── */
+.sources-list { display: flex; flex-direction: column; gap: 8px; }
+.source-row {
+  display: flex; align-items: center; gap: 12px;
+  padding: 10px 14px; background: var(--bg3); border-radius: var(--radius);
+  border: 1px solid var(--border);
+}
+.source-name { flex: 1; font-family: var(--mono); font-size: 12px; color: var(--text); word-break: break-all; }
+.source-chunks { font-family: var(--mono); font-size: 11px; color: var(--text3); white-space: nowrap; }
+.empty-sources { color: var(--text3); font-size: 13px; font-family: var(--mono); padding: 8px 0; }
+
+/* ── Stats bar ──────────────── */
+.stats-bar {
+  display: flex; gap: 24px; margin-bottom: 32px;
+  padding: 16px 20px; background: var(--bg2); border: 1px solid var(--border);
+  border-radius: var(--radius);
+}
+.stat { display: flex; flex-direction: column; gap: 2px; }
+.stat-val { font-size: 20px; font-weight: 600; color: var(--accent); }
+.stat-label { font-size: 11px; color: var(--text3); font-family: var(--mono); }
+
+/* ── Spinner ────────────────── */
+.spin {
+  display: inline-block; width: 14px; height: 14px;
+  border: 2px solid rgba(255,255,255,.3); border-top-color: #fff;
+  border-radius: 50%; animation: spin .6s linear infinite;
+}
+@keyframes spin { to { transform: rotate(360deg); } }
+</style>
+</head>
+<body>
+
+<header class="topbar">
+  <div class="topbar-logo">
+    <div class="dot">
+      <svg viewBox="0 0 12 12" fill="none"><path d="M6 1L11 6L6 11L1 6L6 1Z" fill="white" fill-opacity=".9"/></svg>
+    </div>
+    Agentic RAG
+  </div>
+  <span class="admin-badge">Admin</span>
+  <a class="nav-link" href="/">← Back to chat</a>
+</header>
+
+<div class="page">
+  <div class="page-title">Source Management</div>
+  <div class="page-sub">Upload PDFs, Word documents, or URLs to build the knowledge base.</div>
+
+  <!-- Stats -->
+  <div class="stats-bar" id="stats-bar">
+    <div class="stat"><div class="stat-val" id="stat-vectors">—</div><div class="stat-label">Total vectors</div></div>
+    <div class="stat"><div class="stat-val" id="stat-sources">—</div><div class="stat-label">Sources</div></div>
+    <div class="stat"><div class="stat-val" id="stat-model">—</div><div class="stat-label">Embedding model</div></div>
+  </div>
+
+  <!-- Upload card -->
+  <div class="card">
+    <div class="card-title">Upload Documents</div>
+
+    <div class="drop-zone" id="drop-zone">
+      <input type="file" id="file-input" multiple accept=".pdf,.docx,.xlsx,.xls">
+      <div class="drop-icon">📂</div>
+      <div class="drop-label">Drop files here or click to browse</div>
+      <div class="drop-hint">Supports PDF, DOCX, XLSX, XLS — multiple files allowed</div>
+    </div>
+    <div class="file-list" id="file-list"></div>
+
+    <div style="margin-top: 20px;">
+      <div class="card-title" style="margin-bottom: 8px;">URLs</div>
+      <textarea class="url-input" id="url-input" placeholder="https://example.com/page&#10;https://another.com/doc&#10;One URL per line"></textarea>
+    </div>
+
+    <div style="margin-top: 16px; display: flex; gap: 10px; align-items: center;">
+      <button class="btn btn-primary" id="upload-btn" onclick="uploadSources()">
+        <span id="upload-btn-text">Ingest Sources</span>
+      </button>
+      <span id="upload-hint" style="font-size: 12px; color: var(--text3); font-family: var(--mono);"></span>
+    </div>
+
+    <div class="status-box" id="upload-status"></div>
+  </div>
+
+  <!-- Sources card -->
+  <div class="card">
+    <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 16px;">
+      <div class="card-title" style="margin-bottom: 0;">Ingested Sources</div>
+      <button class="btn btn-danger" id="clear-btn" onclick="clearSources()" style="padding: 7px 14px; font-size: 12px;">
+        Clear all
+      </button>
+    </div>
+    <div class="sources-list" id="sources-list">
+      <div class="empty-sources">Loading…</div>
+    </div>
+    <div class="status-box" id="clear-status"></div>
+  </div>
+</div>
+
+<script>
+let selectedFiles = [];
+
+// ── Boot ──────────────────────────────────────────────────────────────────────
+async function loadInfo() {
+  try {
+    const [infoRes, srcRes] = await Promise.all([
+      fetch('/document-info'),
+      fetch('/admin/sources'),
+    ]);
+    const info = await infoRes.json();
+    const src  = await srcRes.json();
+
+    document.getElementById('stat-vectors').textContent = (info.vector_count ?? 0).toLocaleString();
+    document.getElementById('stat-sources').textContent = src.sources.length;
+    document.getElementById('stat-model').textContent   = 'text-embedding-3-small';
+
+    renderSources(src.sources);
+  } catch(e) {
+    console.warn('Failed to load info', e);
+  }
+}
+
+function renderSources(sources) {
+  const el = document.getElementById('sources-list');
+  if (!sources.length) {
+    el.innerHTML = '<div class="empty-sources">No sources ingested yet. Upload documents above.</div>';
+    return;
+  }
+  el.innerHTML = sources.map(s => `
+    <div class="source-row">
+      <div class="source-name">${escHtml(s.source)}</div>
+      <div class="source-chunks">${s.chunks.toLocaleString()} chunks</div>
+    </div>
+  `).join('');
+}
+
+// ── File drop / select ────────────────────────────────────────────────────────
+const dropZone  = document.getElementById('drop-zone');
+const fileInput = document.getElementById('file-input');
+
+dropZone.addEventListener('dragover', e => { e.preventDefault(); dropZone.classList.add('dragover'); });
+dropZone.addEventListener('dragleave', () => dropZone.classList.remove('dragover'));
+dropZone.addEventListener('drop', e => {
+  e.preventDefault();
+  dropZone.classList.remove('dragover');
+  addFiles(Array.from(e.dataTransfer.files));
+});
+fileInput.addEventListener('change', () => {
+  addFiles(Array.from(fileInput.files));
+  fileInput.value = '';
+});
+
+function addFiles(files) {
+  const allowed = files.filter(f => /\.(pdf|docx|xlsx|xls)$/i.test(f.name));
+  const rejected = files.filter(f => !/\.(pdf|docx|xlsx|xls)$/i.test(f.name));
+  allowed.forEach(f => {
+    if (!selectedFiles.find(x => x.name === f.name)) selectedFiles.push(f);
+  });
+  if (rejected.length) showStatus('upload-status', 'error', `Skipped unsupported file(s): ${rejected.map(f=>f.name).join(', ')}`);
+  renderFileList();
+}
+
+function removeFile(name) {
+  selectedFiles = selectedFiles.filter(f => f.name !== name);
+  renderFileList();
+}
+
+function renderFileList() {
+  const el = document.getElementById('file-list');
+  el.innerHTML = selectedFiles.map(f => `
+    <div class="file-chip">
+      ${escHtml(f.name)}
+      <button onclick="removeFile('${escHtml(f.name)}')" title="Remove">✕</button>
+    </div>
+  `).join('');
+  const hint = document.getElementById('upload-hint');
+  hint.textContent = selectedFiles.length ? `${selectedFiles.length} file(s) selected` : '';
+}
+
+// ── Upload ────────────────────────────────────────────────────────────────────
+async function uploadSources() {
+  const urls = document.getElementById('url-input').value.trim();
+  if (!selectedFiles.length && !urls) {
+    showStatus('upload-status', 'error', 'Add at least one file or URL before ingesting.');
+    return;
+  }
+
+  const btn      = document.getElementById('upload-btn');
+  const btnText  = document.getElementById('upload-btn-text');
+  btn.disabled   = true;
+  btnText.innerHTML = '<span class="spin"></span> Ingesting…';
+  hideStatus('upload-status');
+
+  const formData = new FormData();
+  selectedFiles.forEach(f => formData.append('files', f));
+  formData.append('urls', urls);
+
+  try {
+    const res  = await fetch('/admin/upload', { method: 'POST', body: formData });
+    const data = await res.json();
+
+    let msg = '';
+    if (data.ingested.length) {
+      msg += data.ingested.map(r => {
+        if (r.sqlite_table) {
+          return `✓ ${escHtml(r.source)} — ${r.rows_ingested} rows → structured table (${escHtml(r.sqlite_table)})`;
+        }
+        return `✓ ${escHtml(r.source)} — ${r.chunks_added} chunks added`;
+      }).join('\n');
+    }
+    if (data.errors.length) {
+      msg += (msg ? '\n' : '') + data.errors.map(e => `✗ ${escHtml(e)}`).join('\n');
+    }
+
+    const type = data.errors.length && !data.ingested.length ? 'error'
+               : data.errors.length ? 'info' : 'success';
+    showStatus('upload-status', type, msg || 'Done.');
+
+    if (data.ingested.length) {
+      selectedFiles = [];
+      renderFileList();
+      document.getElementById('url-input').value = '';
+      await loadInfo();
+    }
+  } catch(e) {
+    showStatus('upload-status', 'error', 'Upload failed: ' + e.message);
+  } finally {
+    btn.disabled  = false;
+    btnText.textContent = 'Ingest Sources';
+  }
+}
+
+// ── Clear ─────────────────────────────────────────────────────────────────────
+async function clearSources() {
+  if (!confirm('Delete ALL ingested sources? This cannot be undone.')) return;
+
+  const btn = document.getElementById('clear-btn');
+  btn.disabled = true;
+  hideStatus('clear-status');
+
+  try {
+    const res  = await fetch('/admin/sources', { method: 'DELETE' });
+    const data = await res.json();
+    showStatus('clear-status', 'info', `Cleared ${data.deleted} vector(s) from the knowledge base.`);
+    await loadInfo();
+  } catch(e) {
+    showStatus('clear-status', 'error', 'Clear failed: ' + e.message);
+  } finally {
+    btn.disabled = false;
+  }
+}
+
+// ── Helpers ───────────────────────────────────────────────────────────────────
+function showStatus(id, type, msg) {
+  const el = document.getElementById(id);
+  el.className = `status-box ${type}`;
+  el.style.display = 'block';
+  el.style.whiteSpace = 'pre-line';
+  el.textContent = msg;
+}
+function hideStatus(id) {
+  document.getElementById(id).style.display = 'none';
+}
+function escHtml(s) {
+  return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+}
+
+loadInfo();
+</script>
+</body>
+</html>
