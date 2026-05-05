@@ -24,7 +24,7 @@ Graph topology
 Three routing paths:
   • sql_query   → runs SQL against the structured SQLite store → generate
   • vectorstore → retrieve from ChromaDB → grade → generate
-  • web_search  → (disabled; falls back to vectorstore)
+  • web_search  → Tavily search → generate  (requires ENABLE_WEB_SEARCH=true in .env)
 
 Retry cap
 ─────────
@@ -36,11 +36,13 @@ from __future__ import annotations
 
 from langgraph.graph import StateGraph, END
 
+import config
 from graph.state import GraphState
 from graph.nodes.retrieve import retrieve
 from graph.nodes.grade_documents import grade_documents
 from graph.nodes.generate import generate
 from graph.nodes.sql_query import sql_query
+from graph.nodes.web_search import web_search
 from graph.nodes.router import (
     route_question,
     decide_after_routing,
@@ -82,7 +84,9 @@ def _decide_after_generation_capped(state: GraphState) -> str:
 
 
 def _decide_after_grading(state: GraphState) -> str:
-    """After grade_documents: always go to generate (web search disabled)."""
+    """After grade_documents: go to web_search if enabled and flagged, else generate."""
+    if config.ENABLE_WEB_SEARCH and state.get("web_search"):
+        return "web_search"
     return "generate"
 
 
@@ -97,25 +101,40 @@ def build_graph():
     builder.add_node("grade_documents", grade_documents)
     builder.add_node("sql_query",       sql_query)
     builder.add_node("generate",        _generate_with_cap)
+    if config.ENABLE_WEB_SEARCH:
+        builder.add_node("web_search", web_search)
 
     # Entry point
     builder.set_entry_point("route_question")
 
     # Routing edges from route_question
+    if config.ENABLE_WEB_SEARCH:
+        web_search_target = "web_search"
+    else:
+        web_search_target = "retrieve"  # fall back when disabled
+
     builder.add_conditional_edges(
         "route_question",
         decide_after_routing,
         {
-            "sql_query": "sql_query",
-            "retrieve":  "retrieve",
-            # web_search is disabled — fall back to retrieve
-            "web_search": "retrieve",
+            "sql_query":  "sql_query",
+            "retrieve":   "retrieve",
+            "web_search": web_search_target,
         },
     )
 
-    # Vectorstore path: retrieve → grade → generate
+    # Vectorstore path: retrieve → grade → (web_search | generate)
     builder.add_edge("retrieve", "grade_documents")
-    builder.add_edge("grade_documents", "generate")
+    builder.add_conditional_edges(
+        "grade_documents",
+        _decide_after_grading,
+        {"web_search": "web_search", "generate": "generate"}
+        if config.ENABLE_WEB_SEARCH
+        else {"generate": "generate"},
+    )
+
+    if config.ENABLE_WEB_SEARCH:
+        builder.add_edge("web_search", "generate")
 
     # SQL path: sql_query → retrieve → grade_documents → generate
     # Hybrid approach: always follow SQL with a vectorstore retrieval so that:

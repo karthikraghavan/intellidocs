@@ -146,8 +146,6 @@ async def admin_upload(
     urls: str = Form(default=""),
 ):
     """Ingest uploaded PDF/DOCX files and/or URLs into ChromaDB."""
-    from langchain_community.document_loaders import WebBaseLoader
-
     results = []
     errors  = []
 
@@ -234,11 +232,53 @@ async def admin_upload(
     url_list = [u.strip() for u in urls.replace(",", "\n").splitlines() if u.strip()]
     for url in url_list:
         try:
-            loader = WebBaseLoader(url)
-            docs   = loader.load()
-            count  = ingest_documents(docs, label=url)
-            results.append({"source": url, "chunks_added": count})
+            import asyncio
+            from urllib.parse import urlparse
+            from langchain_community.document_loaders.recursive_url_loader import RecursiveUrlLoader
+            from bs4 import BeautifulSoup
+
+            parsed      = urlparse(url)
+            base_domain = f"{parsed.scheme}://{parsed.netloc}"
+
+            def _bs4_extractor(html: str) -> str:
+                soup = BeautifulSoup(html, "html.parser")
+                for tag in soup(["script", "style", "nav", "footer", "header"]):
+                    tag.decompose()
+                return soup.get_text(separator=" ", strip=True)
+
+            loader = RecursiveUrlLoader(
+                url=url,
+                max_depth=config.WEB_CRAWL_DEPTH,
+                extractor=_bs4_extractor,
+                base_url=base_domain,
+                prevent_outside=True,
+                timeout=15,
+                continue_on_failure=True,
+                headers={
+                    "User-Agent": (
+                        "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) "
+                        "AppleWebKit/537.36 (KHTML, like Gecko) "
+                        "Chrome/124.0.0.0 Safari/537.36"
+                    ),
+                    # Exclude brotli (br) — the requests library used by
+                    # RecursiveUrlLoader cannot reliably decompress it, causing
+                    # DecodingError on sites that honour the Chrome UA's br preference.
+                    "Accept-Encoding": "gzip, deflate",
+                },
+            )
+            log.info("Crawling %s (depth=%d, domain=%s)", url, config.WEB_CRAWL_DEPTH, base_domain)
+
+            # Run the blocking crawl in a thread pool so it doesn't conflict
+            # with uvicorn's event loop (RecursiveUrlLoader.load() is synchronous)
+            loop = asyncio.get_event_loop()
+            docs = await loop.run_in_executor(None, loader.load)
+
+            pages = len(docs)
+            count = ingest_documents(docs, label=url)
+            log.info("Crawled %d pages from %s → %d chunks", pages, url, count)
+            results.append({"source": url, "pages_crawled": pages, "chunks_added": count})
         except Exception as e:
+            log.exception("Failed to crawl %s", url)
             errors.append(f"{url}: {e}")
 
     if results:

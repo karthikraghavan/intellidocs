@@ -30,7 +30,7 @@ SQLITE_DB_PATH: str = os.getenv("SQLITE_DB_PATH", "structured_db/data.db")
 
 # ── Chunking ─────────────────────────────────────────────────────────────────
 CHUNK_SIZE: int = int(os.getenv("CHUNK_SIZE", "1000"))
-CHUNK_OVERLAP: int = int(os.getenv("CHUNK_OVERLAP", "200"))
+CHUNK_OVERLAP: int = int(os.getenv("CHUNK_OVERLAP", "400"))
 
 # ── Retrieval ─────────────────────────────────────────────────────────────────
 RETRIEVER_K: int = int(os.getenv("RETRIEVER_K", "5"))
@@ -38,6 +38,16 @@ RETRIEVER_K: int = int(os.getenv("RETRIEVER_K", "5"))
 # ── LLM ───────────────────────────────────────────────────────────────────────
 LLM_MODEL: str = os.getenv("LLM_MODEL", "gpt-4o-mini")
 LLM_TEMPERATURE: float = float(os.getenv("LLM_TEMPERATURE", "0"))
+
+# ── Feature switches ──────────────────────────────────────────────────────────
+# Set ENABLE_WEB_SEARCH=true in .env (and provide TAVILY_API_KEY) to activate.
+ENABLE_WEB_SEARCH: bool = False
+
+# ── Web crawling ──────────────────────────────────────────────────────────────
+# How many link-levels deep to follow when ingesting a URL via the admin page.
+# depth=1 → only the given page; depth=2 → that page + all pages it links to, etc.
+# Set WEB_CRAWL_DEPTH=1 in .env to disable crawling (original behaviour).
+WEB_CRAWL_DEPTH: int = int(os.getenv("WEB_CRAWL_DEPTH", "3"))
 
 # ── Keys ──────────────────────────────────────────────────────────────────────
 OPENAI_API_KEY: str = os.getenv("OPENAI_API_KEY", "")

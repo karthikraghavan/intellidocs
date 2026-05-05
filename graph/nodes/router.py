@@ -55,15 +55,13 @@ class RouteDecision(BaseModel):
             "filtering, or SQL operations over tabular/structured data (e.g. totals, "
             "averages, counts, date-range filters on rows). "
             "Route to 'vectorstore' for text-based document questions. "
-            "Route to 'web_search' for live or general knowledge outside the documents."
+            "Route to 'web_search' for live or general knowledge outside the documents "
+            "(only available when web search is enabled)."
         )
     )
 
 
-ROUTE_PROMPT = ChatPromptTemplate.from_messages([
-    (
-        "system",
-        """You are a query router for a document Q&A system.
+_ROUTE_SYSTEM_WITH_WEB = """You are a query router for a document Q&A system.
 The knowledge base contains documents that have been uploaded by the user.
 The current document set is labelled: {document_label}
 
@@ -94,7 +92,28 @@ Route to 'vectorstore' when:
 
 Route to 'web_search' when:
 - Information requires live, real-time, or current external data not in any uploaded document
-- General knowledge clearly unrelated to the uploaded content""",
+- General knowledge clearly unrelated to the uploaded content"""
+
+_ROUTE_SYSTEM_NO_WEB = """You are a query router for a document Q&A system.
+The knowledge base contains documents that have been uploaded by the user.
+The current document set is labelled: {document_label}
+
+Structured (tabular) tables available in the database:
+{structured_tables}
+
+Route to 'sql_query' ONLY when ALL of these are true:
+1. Structured tables are listed above (not "none")
+2. The question is explicitly about aggregating or filtering rows IN THOSE TABLES
+   (e.g. SUM, total, average, count, min, max, grouped by, filtered by date/category)
+3. The column names in the question or its intent clearly match a column in the listed tables
+
+Route to 'vectorstore' for all other questions, including those that might otherwise
+benefit from a web search. Web search is currently disabled."""
+
+ROUTE_PROMPT = ChatPromptTemplate.from_messages([
+    (
+        "system",
+        _ROUTE_SYSTEM_WITH_WEB if config.ENABLE_WEB_SEARCH else _ROUTE_SYSTEM_NO_WEB,
     ),
     ("human", "{question}"),
 ])
@@ -158,7 +177,8 @@ def decide_after_routing(state: GraphState) -> str:
     if route == "sql_query":
         return "sql_query"
     if route == "web_search":
-        return "web_search"
+        # Honour the routing only when the feature switch is on
+        return "web_search" if config.ENABLE_WEB_SEARCH else "retrieve"
     return "retrieve"
 
 
