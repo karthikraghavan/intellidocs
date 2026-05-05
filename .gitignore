@@ -9,7 +9,7 @@ __pycache__/
 .venv/
 
 # Data (don't commit large PDFs)
-data/*.pdf
+data/*.*
 
 # IDE
 .vscode/
